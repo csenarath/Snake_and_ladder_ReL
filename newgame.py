@@ -79,6 +79,7 @@ class Agent:
         self.gamma = gamma
         self.epsilon = epsilon
         self.actions = []
+        self.V = np.zeros((101, 6))
 
     def reset(self):
         self.actions = []
@@ -104,12 +105,13 @@ class Agent:
         return action
 
     def updateQ(self, s, a, s_prime, r):
-        #print("max")
-        #print( max(self.Q[s_prime]))
         self.Q[s, a] += self.alpha * (r + self.gamma * max(self.Q[s_prime]) - self.Q[s, a])
 
     def updateSar(self, s, a, s_prime, r):
         self.Q[s, a] += self.alpha * (r + self.gamma * s_prime - self.Q[s, a])
+
+    def updateTD(self, s, s2, r):
+        self.V[s] += self.V[s] + self.alpha * (r + self.gamma * self.V[s2] - self.V[s])
 
     def getQValues(self):
         return self.Q
@@ -129,7 +131,6 @@ def QLearning(num_episodes, env, agent):
         episode_rewards=np.zeros(num_episodes))
 
     for ep in tqdm(range(num_episodes)):
-        print(ep)
         pass
         # get current state from environment
         state = env.getCurrent()
@@ -186,6 +187,37 @@ def SLearning(num_episodes, env, agent):
             # using Agent object, update its Q values
             agent.updateSar(state, action - 1, state_prime, reward)
             state = state_prime
+        actionList.append(agent.getActions())
+        agent.reset()
+        env.reset()
+    return actionList,stats
+
+def TDLearning(num_episodes, env, agent):
+    actionList = []
+
+    stats = plotting.EpisodeStats(
+        episode_lengths=np.zeros(num_episodes),
+        episode_rewards=np.zeros(num_episodes))
+
+    for ep in tqdm(range(num_episodes)):
+        pass
+        # get current state from environment
+        state = env.getCurrent()
+        t = 1
+        while True:
+            # using epsilon-greedy policy, get actionfrom Agent object
+            action = agent.ep_greedy(state)
+
+            state_prime, reward, terminal = env.step(action)
+            if terminal:
+                break
+            t = t + 1
+            # Update statistics
+            stats.episode_rewards[ep] += reward
+            stats.episode_lengths[ep] = t
+            # using Agent object, update its Q values
+            state = state_prime
+            agent.updateTD(state, state_prime, reward)
         actionList.append(agent.getActions())
         agent.reset()
         env.reset()
@@ -272,21 +304,30 @@ def plot_heatmap_max_val(env, value, algoTitle, ax=None):
 if __name__ == '__main__':
     QLearningAgent = Agent(alpha, gamma, epsilon)
     snakesAndLadders = SnakesAndLadders()
-    actionList,stats = QLearning(num_episodes, snakesAndLadders, QLearningAgent)
+    actionList,statsQ = QLearning(num_episodes, snakesAndLadders, QLearningAgent)
 
-    fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(13, 5))
-    plot_heatmap_max_val(snakesAndLadders, QLearningAgent.getQValues(), 'QLearning', ax[0])
-    plot_actionNum_vs_episodes(num_episodes, actionList, "QLearning", ax[1])
+  #  fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(13, 5))
+  #  plot_heatmap_max_val(snakesAndLadders, QLearningAgent.getQValues(), 'QLearning', ax[0])
+  #  plot_actionNum_vs_episodes(num_episodes, actionList, "QLearning", ax[1])
 
     SLearningAgent = Agent(alpha, gamma, epsilon)
     snakesAndLadders = SnakesAndLadders()
     actionList,statsS = SLearning(num_episodes, snakesAndLadders, SLearningAgent)
 
-    fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(13, 5))
-    plot_heatmap_max_val(snakesAndLadders, SLearningAgent.getQValues(), 'SARSA', ax[0])
-    plot_actionNum_vs_episodes(num_episodes, actionList, "SARSA", ax[1])
+
+  #  fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(13, 5))
+  # plot_heatmap_max_val(snakesAndLadders, SLearningAgent.getQValues(), 'SARSA', ax[0])
+  # plot_actionNum_vs_episodes(num_episodes, actionList, "SARSA", ax[1])
+
+
+    SLearningAgent = Agent(alpha, gamma, epsilon)
+    snakesAndLadders = SnakesAndLadders()
+    actionList,statsTD = TDLearning(num_episodes, snakesAndLadders, SLearningAgent)
 
     #plt.show()
-    plotting.plot_episode_stats(stats)
+    print("QLearning")
+    plotting.plot_episode_stats(statsQ)
     print("SARSA")
     plotting.plot_episode_stats(statsS)
+    print("TD")
+    plotting.plot_episode_stats(statsTD)
